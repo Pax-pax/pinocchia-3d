@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PINOCCHIA Billboquet - 3D Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #FFFEF5;
+            overflow: hidden;
+            transition: background 0.6s ease;
+        }
+
+        body.dark-mode {
+            background: #141212;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #canvas-container {
+            width: 90vw;
+            max-width: 700px;
+            height: 85vh;
+            max-height: 700px;
+            position: relative;
+            cursor: grab;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #141212;
+            font-size: 12px;
+            opacity: 0.4;
+            letter-spacing: 0.5px;
+            transition: color 0.6s ease, opacity 0.6s ease;
+        }
+
+        body.dark-mode .controls {
+            color: #FFFEF5;
+            opacity: 0.5;
+        }
+
+        .light-toggle {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #141212;
+            border: 2px solid #141212;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .light-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        body.dark-mode .light-toggle {
+            background: #FFDE39;
+            border-color: #FFDE39;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                font-size: 10px;
+                bottom: 20px;
+            }
+            
+            .light-toggle {
+                top: 20px;
+                right: 20px;
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <button class="light-toggle" id="lightToggle" aria-label="Toggle light">💡</button>
+        <div id="canvas-container">
+            <div class="controls">
+                Drag to rotate • Scroll to zoom
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Dark mode toggle
+        const toggleButton = document.getElementById('lightToggle');
+        let isDarkMode = false;
+        let bulbIsOn = false;
+
+        toggleButton.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            bulbIsOn = !bulbIsOn;
+            document.body.classList.toggle('dark-mode');
+            toggleButton.textContent = isDarkMode ? '💡' : '🌙';
+            
+            // Update lighting
+            updateLighting();
+        });
+
+        // Scene setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(
+            35,
+            container.clientWidth / container.clientHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 3, 12);
+        camera.lookAt(0, 2, 0);
+
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true, 
+            alpha: true 
+        });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // Realistic Materials with expanded palette
+        const blackMatte = new THREE.MeshStandardMaterial({ 
+            color: 0x141212,
+            roughness: 0.85,
+            metalness: 0.05
+        });
+
+        const blueGlossy = new THREE.MeshStandardMaterial({ 
+            color: 0x0072EF,
+            roughness: 0.15,
+            metalness: 0.4,
+            envMapIntensity: 1.5
+        });
+
+        const yellowAccent = new THREE.MeshStandardMaterial({ 
+            color: 0xFFDE39,
+            roughness: 0.2,
+            metalness: 0.3
+        });
+
+        const pinkAccent = new THREE.MeshStandardMaterial({ 
+            color: 0xFF4D67,
+            roughness: 0.25,
+            metalness: 0.25
+        });
+
+        const redAccent = new THREE.MeshStandardMaterial({ 
+            color: 0xcc0000,
+            roughness: 0.25,
+            metalness: 0.25
+        });
+
+        const woodOiled = new THREE.MeshStandardMaterial({ 
+            color: 0xc19a6b,
+            roughness: 0.65,
+            metalness: 0,
+            bumpScale: 0.002
+        });
+
+        const opalineGlass = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            roughness: 0.08,
+            metalness: 0,
+            transmission: 0.75,
+            thickness: 0.8,
+            opacity: 1,
+            transparent: true,
+            clearcoat: 0.3,
+            clearcoatRoughness: 0.1,
+            emissive: 0xfff9e6,
+            emissiveIntensity: 0
+        });
+
+        const cordMaterial = new THREE.MeshStandardMaterial({
+            color: 0xFF4D67,
+            roughness: 0.9,
+            metalness: 0
+        });
+
+        // Create lamp group
+        const lamp = new THREE.Group();
+
+        // WOODEN BASE - square pedestal
+        const baseGeometry = new THREE.BoxGeometry(1.4, 0.35, 1.4);
+        const base = new THREE.Mesh(baseGeometry, woodOiled);
+        base.position.y = 0.175;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        lamp.add(base);
+
+        // CENTRAL COLUMN - main turned element (black)
+        const turnedBase = new THREE.CylinderGeometry(0.22, 0.28, 0.4, 32);
+        const tBase = new THREE.Mesh(turnedBase, blackMatte);
+        tBase.position.y = 0.55;
+        tBase.castShadow = true;
+        lamp.add(tBase);
+
+        const neck1 = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 32);
+        const n1 = new THREE.Mesh(neck1, blackMatte);
+        n1.position.y = 0.9;
+        n1.castShadow = true;
+        lamp.add(n1);
+
+        const ring1 = new THREE.TorusGeometry(0.18, 0.04, 16, 32);
+        const r1 = new THREE.Mesh(ring1, blackMatte);
+        r1.rotation.x = Math.PI / 2;
+        r1.position.y = 1.05;
+        r1.castShadow = true;
+        lamp.add(r1);
+
+        const midSection = new THREE.CylinderGeometry(0.18, 0.18, 0.5, 32);
+        const midS = new THREE.Mesh(midSection, blackMatte);
+        midS.position.y = 1.4;
+        midS.castShadow = true;
+        lamp.add(midS);
+
+        // INVERTED CONE (bottom)
+        const cone1Geo = new THREE.CylinderGeometry(0.28, 0.12, 0.6, 32);
+        const cone1 = new THREE.Mesh(cone1Geo, blackMatte);
+        cone1.position.y = 1.85;
+        cone1.castShadow = true;
+        lamp.add(cone1);
+
+        // UPRIGHT CONE (top)
+        const cone2Geo = new THREE.CylinderGeometry(0.12, 0.28, 0.6, 32);
+        const cone2 = new THREE.Mesh(cone2Geo, blackMatte);
+        cone2.position.y = 2.45;
+        cone2.castShadow = true;
+        lamp.add(cone2);
+
+        const topNeck = new THREE.CylinderGeometry(0.11, 0.11, 0.5, 32);
+        const tNeck = new THREE.Mesh(topNeck, blackMatte);
+        tNeck.position.y = 3.0;
+        tNeck.castShadow = true;
+        lamp.add(tNeck);
+
+        // RED/PINK CROSS PLATFORM
+        const crossBar = new THREE.BoxGeometry(1.2, 0.12, 0.25);
+        const cross = new THREE.Mesh(crossBar, pinkAccent);
+        cross.position.y = 3.35;
+        cross.castShadow = true;
+        lamp.add(cross);
+
+        const smallCubeGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+        const sCube = new THREE.Mesh(smallCubeGeo, pinkAccent);
+        sCube.position.set(0, 3.52, 0);
+        sCube.castShadow = true;
+        lamp.add(sCube);
+
+        // HORIZONTAL WOODEN ARM
+        const armRadius = 0.08;
+        const armLength = 1.6;
+        
+        const armGeo = new THREE.CylinderGeometry(armRadius, armRadius, armLength, 32);
+        const arm = new THREE.Mesh(armGeo, woodOiled);
+        arm.rotation.z = Math.PI / 2;
+        arm.position.set(-0.45, 3.35, 0);
+        arm.castShadow = true;
+        lamp.add(arm);
+
+        // BLUE DISC on arm
+        const blueDiscGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.08, 32);
+        const blueDisc = new THREE.Mesh(blueDiscGeo, blueGlossy);
+        blueDisc.position.set(-0.9, 3.35, 0);
+        blueDisc.castShadow = true;
+        lamp.add(blueDisc);
+
+        // YELLOW RING on arm
+        const yellowRingGeo = new THREE.TorusGeometry(0.14, 0.045, 16, 32);
+        const yellowRing = new THREE.Mesh(yellowRingGeo, yellowAccent);
+        yellowRing.rotation.y = Math.PI / 2;
+        yellowRing.position.set(-0.55, 3.35, 0);
+        yellowRing.castShadow = true;
+        lamp.add(yellowRing);
+
+        // SMALL BLUE SPHERE
+        const blueSphereGeo = new THREE.SphereGeometry(0.12, 32, 32);
+        const blueSphere = new THREE.Mesh(blueSphereGeo, blueGlossy);
+        blueSphere.position.set(-1.25, 3.35, 0);
+        blueSphere.castShadow = true;
+        lamp.add(blueSphere);
+
+        // BLACK SOCKET/TURNED TOP ELEMENT
+        const socketBase = new THREE.CylinderGeometry(0.14, 0.18, 0.25, 32);
+        const socket1 = new THREE.Mesh(socketBase, blackMatte);
+        socket1.position.set(0.15, 3.7, 0);
+        socket1.castShadow = true;
+        lamp.add(socket1);
+
+        const socketTop = new THREE.CylinderGeometry(0.12, 0.14, 0.2, 32);
+        const socket2 = new THREE.Mesh(socketTop, blackMatte);
+        socket2.position.set(0.15, 3.95, 0);
+        socket2.castShadow = true;
+        lamp.add(socket2);
+
+        // OPALINE GLOBE - realistic
+        const globeGeo = new THREE.SphereGeometry(0.45, 64, 64);
+        const globe = new THREE.Mesh(globeGeo, opalineGlass);
+        globe.position.set(0.15, 4.5, 0);
+        globe.castShadow = true;
+        globe.receiveShadow = true;
+        lamp.add(globe);
+
+        // MUCH LONGER, MORE SERPENTINE BRAIDED TEXTILE CORD
+        const cordCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0.6, 3.35, 0),
+            new THREE.Vector3(0.85, 3.15, 0.25),
+            new THREE.Vector3(1.1, 2.9, 0.35),
+            new THREE.Vector3(1.2, 2.55, 0.3),
+            new THREE.Vector3(1.15, 2.15, 0.15),
+            new THREE.Vector3(0.95, 1.75, -0.05),
+            new THREE.Vector3(0.65, 1.35, -0.15),
+            new THREE.Vector3(0.45, 0.95, -0.1),
+            new THREE.Vector3(0.5, 0.6, 0.05),
+            new THREE.Vector3(0.65, 0.3, 0.15),
+            new THREE.Vector3(0.75, 0.05, 0.2),
+            new THREE.Vector3(0.7, -0.2, 0.15),
+            new THREE.Vector3(0.55, -0.45, 0.05),
+            new THREE.Vector3(0.3, -0.65, -0.05),
+            new THREE.Vector3(0, -0.8, -0.1)
+        ]);
+
+        const cordGeo = new THREE.TubeGeometry(cordCurve, 128, 0.022, 8, false);
+        const cord = new THREE.Mesh(cordGeo, cordMaterial);
+        cord.castShadow = true;
+        lamp.add(cord);
+
+        scene.add(lamp);
+
+        // LIGHTING SETUP with dark mode support
+        const ambientLight = new THREE.AmbientLight(0xFFFEF5, 0.5);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+        keyLight.position.set(8, 12, 6);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 4096;
+        keyLight.shadow.mapSize.height = 4096;
+        keyLight.shadow.camera.near = 0.5;
+        keyLight.shadow.camera.far = 50;
+        keyLight.shadow.bias = -0.0001;
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        fillLight.position.set(-6, 4, -4);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0x0072EF, 0.3);
+        rimLight.position.set(0, 5, -8);
+        scene.add(rimLight);
+
+        // BULB LIGHT - toggleable (warm white glow)
+        const bulbLight = new THREE.PointLight(0xfff9e6, 0, 6);
+        bulbLight.position.set(0.15, 4.5, 0);
+        bulbLight.castShadow = true;
+        bulbLight.shadow.bias = -0.0001;
+        lamp.add(bulbLight);
+
+        // Ambient glow around lamp when on (creates halo effect)
+        const glowLight = new THREE.PointLight(0xffe8b3, 0, 12);
+        glowLight.position.set(0.15, 4.5, 0);
+        lamp.add(glowLight);
+
+        function updateLighting() {
+            if (isDarkMode) {
+                // Dark mode - lamp ON (bright illumination)
+                ambientLight.intensity = 0.15;
+                keyLight.intensity = 0.25;
+                fillLight.intensity = 0.08;
+                rimLight.intensity = 0.12;
+                bulbLight.intensity = 8;
+                glowLight.intensity = 4.5;
+                opalineGlass.emissiveIntensity = 2.5;
+                opalineGlass.opacity = 1;
+                opalineGlass.transmission = 0.3;
+                renderer.toneMappingExposure = 2;
+            } else {
+                // Light mode - lamp OFF
+                ambientLight.intensity = 0.5;
+                keyLight.intensity = 1.2;
+                fillLight.intensity = 0.4;
+                rimLight.intensity = 0.3;
+                bulbLight.intensity = 0;
+                glowLight.intensity = 0;
+                opalineGlass.emissiveIntensity = 0;
+                opalineGlass.opacity = 1;
+                opalineGlass.transmission = 0.75;
+                renderer.toneMappingExposure = 1.2;
+            }
+        }
+
+        // Interaction
+        let isRotating = true;
+        let mouseDown = false;
+        let mouseX = 0;
+        let mouseY = 0;
+
+        container.addEventListener('mousedown', (e) => {
+            mouseDown = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            isRotating = false;
+        });
+
+        container.addEventListener('mousemove', (e) => {
+            if (mouseDown) {
+                const deltaX = e.clientX - mouseX;
+                const deltaY = e.clientY - mouseY;
+                
+                lamp.rotation.y += deltaX * 0.008;
+                lamp.rotation.x += deltaY * 0.008;
+                lamp.rotation.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, lamp.rotation.x));
+                
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            }
+        });
+
+        container.addEventListener('mouseup', () => {
+            mouseDown = false;
+        });
+
+        container.addEventListener('mouseleave', () => {
+            mouseDown = false;
+        });
+
+        // Touch support
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        container.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            isRotating = false;
+        });
+
+        container.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const deltaY = e.touches[0].clientY - touchStartY;
+            
+            lamp.rotation.y += deltaX * 0.008;
+            lamp.rotation.x += deltaY * 0.008;
+            lamp.rotation.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, lamp.rotation.x));
+            
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: false });
+
+        // Zoom
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            camera.position.z += e.deltaY * 0.015;
+            camera.position.z = Math.max(6, Math.min(18, camera.position.z));
+        }, { passive: false });
+
+        // Responsive
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // Animation loop
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            time += 0.01;
+            
+            if (isRotating && !mouseDown) {
+                lamp.rotation.y += 0.003;
+            }
+            
+            // Pulsing light when on (breathing effect)
+            if (isDarkMode) {
+                const pulse = Math.sin(time * 0.8);
+                bulbLight.intensity = 8 + pulse * 0.8;
+                opalineGlass.emissiveIntensity = 2.5 + pulse * 0.3;
+                glowLight.intensity = 4.5 + pulse * 0.5;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
